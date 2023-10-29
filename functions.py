@@ -132,7 +132,7 @@ def moments(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, wrongly_agree_0=Fals
         return m1, m2, m3, m4, m5, m6, meq
 
 
-def bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples=500):
+def bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples=500, seed = False):
     """
    Auxiliary function for making non-parametric boostrap draws in Romano, Shaikh and Wolf (2014).
    Returns the list of tuples of bootstrap samples.
@@ -142,8 +142,12 @@ def bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples=500):
    :param t0r1: Number of subjects who were negative on the index, but positive on the reference test. Integer scalar
    :param t0r0: Number of negatives on both tests. Integer scalar
    :param boot_samples: Number of bootstrap samples. Default 500. Integer scalar
+   :param seed: Seed number. Default False. Boolean or integer scalar
    :return: List of tuples
    """
+
+    if seed!=False:
+        np.random.seed(seed)
 
     N = (t0r1 + t0r0 + t1r0 + t1r1)
     ti1 = t1r1 + t1r0
@@ -161,7 +165,7 @@ def bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples=500):
 
 
 def rsw(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, alpha=0.05, method='2', boot_samples=500,tol=10 ** (-15),
-        wrongly_agree_0=False, wrongly_agree_1=False):
+        wrongly_agree_0=False, wrongly_agree_1=False, seed=False):
     """
     Returns the Romano, Shaikh and Wolf (2014) (RSW henceforth) test result for given parameters theta1,
     theta0, s1 and s0.
@@ -180,6 +184,7 @@ def rsw(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, alpha=0.05, method='2', 
     :param tol: Tolerance for censoring to zero to avoid float calculation errors. Default: 10**(-15). Float scalar
     :param wrongly_agree_0: Tests have a tendency to wrongly agree for y=0. Default False. Boolean scalar
     :param wrongly_agree_1: Tests have a tendency to wrongly agree for y=1. Default False. Boolean scalar
+    :param seed: Seed number. Default False. Boolean or integer scalar
     :return: True (reject) or False (do not reject)
     """
 
@@ -189,7 +194,7 @@ def rsw(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, alpha=0.05, method='2', 
 
     if wrongly_agree_0 == True and theta0>(1+s0)/2:
         return False
-
+    #
     ## If in parameter space, proceed to test
     beta = alpha/10 # Significance level of the first step. Default alpha/10 following RSW (2014)
     data = np.stack(moments(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0,
@@ -203,7 +208,7 @@ def rsw(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, alpha=0.05, method='2', 
     sigmashats = np.sqrt(np.sum((data - mbars) ** 2, axis=0) / N)
 
     # Create set of bootstrap samples
-    bootstrap_samples = bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples)
+    bootstrap_samples = bootstrap(t1r1, t1r0, t0r1, t0r0, boot_samples, seed = seed)
 
     # Calculate boostrap statistics for c1
     boot_dataset = []
@@ -252,7 +257,8 @@ def rsw(theta1, theta0, s1, s0, t1r1, t1r0, t0r1, t0r0, alpha=0.05, method='2', 
 
 
 def form_conf_sets(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, grid_steps=1000, method = '2',
-                   boot_samples = 500, wrongly_agree_0=False, wrongly_agree_1=False, parallel = True, num_threads = -1):
+                   boot_samples = 500, wrongly_agree_0=False, wrongly_agree_1=False, parallel = True, num_threads = -1,
+                   seed = False):
     """
     Function that returns the confidence set using RSW for a known s1 and s0.
 
@@ -271,6 +277,7 @@ def form_conf_sets(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, grid_steps=1000
     :param wrongly_agree_1: Tests have a tendency to wrongly agree for y=1. Default False. Boolean scalarr
     :param parallel: Parallelization indicator. Boolean scalar
     :param num_threads: Number of threads used in calculation. Default -1 - all available. Integer scalar
+    :param seed: Seed number. Default False. Boolean or integer scalar
     :return: List of points in confidence set
     """
     conf_set = []
@@ -278,7 +285,8 @@ def form_conf_sets(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, grid_steps=1000
     if parallel:
         sol = Parallel(n_jobs=num_threads)(delayed(rsw)(thetas[0], thetas[1], s1, s0, t1r1, t1r0, t0r1, t0r0,
                                                         alpha=alpha, method = method, boot_samples=boot_samples,
-                                                        wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1)
+                                                        wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1,
+                                                        seed = seed)
                                             for thetas in theta_grid)
         conf_set = theta_grid[sol]
     else:
@@ -297,7 +305,7 @@ def form_conf_sets(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, grid_steps=1000
 
 def form_conf_sets_rsw_unknown(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, grid_steps=1000, gridsteps_s=1000,
                                method = '2',boot_samples = 500, wrongly_agree_0=False,
-                               wrongly_agree_1=False, parallel = True, num_threads = -1):
+                               wrongly_agree_1=False, parallel = True, num_threads = -1, seed=False):
     """
     Function that returns the confidence set using RSW when s1 and s0 in some set S. Assumed S is rectangular.
 
@@ -319,6 +327,7 @@ def form_conf_sets_rsw_unknown(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, gri
     :param wrongly_agree_1: Tests have a tendency to wrongly agree for y=1. Default False. Boolean scalar
     :param parallel: Parallelization indicator. Boolean scalar
     :param num_threads: Number of threads used in calculation. Default -1 - all available. Integer scalar
+    :param seed: Seed number. Default False. Boolean or integer scalar
     :return: List of points in confidence set
     """
     conf_set = []
@@ -331,7 +340,8 @@ def form_conf_sets_rsw_unknown(s1, s0, t1r1, t1r0, t0r1, t0r0, alpha = 0.05, gri
     if parallel:
         sol = Parallel(n_jobs=num_threads)(delayed(rsw)(thetas[0], thetas[1], thetas[2], thetas[3], t1r1, t1r0, t0r1,
                                                         t0r0, alpha=alpha, method = method, boot_samples=boot_samples,
-                                                        wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1)
+                                                        wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1,
+                                                        seed=seed)
                                             for thetas in theta_grid)
         conf_set = theta_grid[sol]
     else:
@@ -528,7 +538,7 @@ def graphing(conf_set, estimated_set, t1r1,t1r0,t0r1,t0r0, alpha=0.05, filename 
 
 def calculate(s1, s0, t1r1,t1r0,t0r1,t0r0, wrongly_agree_0=False, wrongly_agree_1=False, grid_steps_estimate = 1000,
             grid_steps_conf = 316, gridsteps_s = 10, method = '2', boot_samples = 500, alpha=0.05,
-            parallel = True, num_threads = -1, filename='graph', include_apparent = True):
+            parallel = True, num_threads = -1, filename='graph', include_apparent = True, seed = False):
     """
     Omnibus function for calculation. Plots and saves graphs so the Graphs folder.
 
@@ -577,7 +587,8 @@ def calculate(s1, s0, t1r1,t1r0,t0r1,t0r0, wrongly_agree_0=False, wrongly_agree_
         conf_set = form_conf_sets_rsw_unknown(s1, s0, t1r1, t1r0, t0r1, t0r0, grid_steps=grid_steps_conf,
                                               gridsteps_s=gridsteps_s, method=method, alpha=alpha,
                                               boot_samples=boot_samples, parallel=parallel, num_threads=num_threads,
-                                              wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1)
+                                              wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1,
+                                              seed=seed)
         CP = [stats.proportion_confint(t1r1, (t1r1 + t0r1), alpha=alpha, method='beta'),
           stats.proportion_confint(t0r0, (t0r0 + t1r0), alpha=alpha, method='beta')]
 
@@ -604,7 +615,8 @@ def calculate(s1, s0, t1r1,t1r0,t0r1,t0r0, wrongly_agree_0=False, wrongly_agree_
 
         conf_set = form_conf_sets(s1, s0, t1r1, t1r0, t0r1, t0r0, grid_steps=grid_steps_conf, method=method, alpha=alpha,
                                   boot_samples=boot_samples, parallel=parallel, num_threads=num_threads,
-                                   wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1)
+                                   wrongly_agree_0=wrongly_agree_0, wrongly_agree_1=wrongly_agree_1,
+                                   seed=seed)
         CP = [stats.proportion_confint(t1r1, (t1r1 + t0r1), alpha=alpha, method='beta'),
               stats.proportion_confint(t0r0, (t0r0 + t1r0), alpha=alpha, method='beta')]
 
